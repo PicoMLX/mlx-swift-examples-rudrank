@@ -73,14 +73,19 @@ private class Attention: Module {
         keys = kNorm(keys.reshaped(B, L, args.kvHeads, -1)).transposed(0, 2, 1, 3)
         values = values.reshaped(B, L, args.kvHeads, -1).transposed(0, 2, 1, 3)
 
-        if let cache {
-            queries = rope(queries, offset: cache.offset)
-            keys = rope(keys, offset: cache.offset)
-            (keys, values) = cache.update(keys: keys, values: values)
-        } else {
-            queries = rope(queries)
-            keys = rope(keys)
-        }
+        let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: B)
+        queries = applyRotaryEmbedding(
+            queries,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
+        keys = applyRotaryEmbedding(
+            keys,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
 
         let output = MLXFast.scaledDotProductAttention(
             queries: queries, keys: keys, values: values, scale: scale, mask: mask

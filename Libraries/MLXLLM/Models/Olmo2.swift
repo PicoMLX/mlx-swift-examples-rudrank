@@ -206,13 +206,19 @@ private class Attention: Module {
         keys = keys.reshaped(B, L, nKVHeads, -1).transposed(0, 2, 1, 3)
         values = values.reshaped(B, L, nKVHeads, -1).transposed(0, 2, 1, 3)
 
-        if let cache {
-            queries = applyRoPE(queries, offset: cache.offset)
-            keys = applyRoPE(keys, offset: cache.offset)
-        } else {
-            queries = applyRoPE(queries, offset: nil)
-            keys = applyRoPE(keys, offset: nil)
-        }
+        let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: B)
+        queries = applyRotaryEmbedding(
+            queries,
+            offsets: rotaryOffsets,
+            base: { applyRoPE($0, offset: nil) },
+            withOffset: { tensor, offset in applyRoPE(tensor, offset: offset) }
+        )
+        keys = applyRotaryEmbedding(
+            keys,
+            offsets: rotaryOffsets,
+            base: { applyRoPE($0, offset: nil) },
+            withOffset: { tensor, offset in applyRoPE(tensor, offset: offset) }
+        )
 
         let output = attentionWithCacheUpdate(
             queries: queries,

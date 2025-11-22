@@ -64,13 +64,19 @@ private final class Lille130mAttention: Module {
         values = values.reshaped(B, L, args.kvHeads, -1).transposed(0, 2, 1, 3)
 
         // Apply RoPE with cache-aware offset if available
-        if let cache {
-            queries = rope(queries, offset: cache.offset)
-            keys = rope(keys, offset: cache.offset)
-        } else {
-            queries = rope(queries)
-            keys = rope(keys)
-        }
+        let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: B)
+        queries = applyRotaryEmbedding(
+            queries,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
+        keys = applyRotaryEmbedding(
+            keys,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
 
         let output = attentionWithCacheUpdate(
             queries: queries,

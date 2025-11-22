@@ -276,18 +276,28 @@ private class DeepseekV3Attention: Module {
 
         var (kNope, values) = (splitKv[0], splitKv[1])
 
+        let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: qPe.dim(0))
+        qPe = applyRotaryEmbedding(
+            qPe,
+            offsets: rotaryOffsets,
+            base: { self.rope($0) },
+            withOffset: { tensor, offset in self.rope(tensor, offset: offset) }
+        )
+        kPe = applyRotaryEmbedding(
+            kPe,
+            offsets: rotaryOffsets,
+            base: { self.rope($0) },
+            withOffset: { tensor, offset in self.rope(tensor, offset: offset) }
+        )
+
+        kPe = repeated(kPe, count: numHeads, axis: 1)
+        let combinedKeys = concatenated([kNope, kPe], axis: -1)
+
         var keys: MLXArray
-        if let cache = cache {
-            qPe = self.rope(qPe, offset: cache.offset)
-            kPe = self.rope(kPe, offset: cache.offset)
-            kPe = repeated(kPe, count: numHeads, axis: 1)
-            (keys, values) = cache.update(
-                keys: concatenated([kNope, kPe], axis: -1), values: values)
+        if let cache {
+            (keys, values) = cache.update(keys: combinedKeys, values: values)
         } else {
-            qPe = self.rope(qPe)
-            kPe = self.rope(kPe)
-            kPe = repeated(kPe, count: numHeads, axis: 1)
-            keys = concatenated([kNope, kPe], axis: -1)
+            keys = combinedKeys
         }
 
         let queries = concatenated([qNope, qPe], axis: -1)

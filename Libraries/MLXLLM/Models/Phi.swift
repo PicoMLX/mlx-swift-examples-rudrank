@@ -57,13 +57,19 @@ private class PhiAttention: Module {
         values = values.reshaped(B, L, args.kvHeads, headDim).transposed(0, 2, 1, 3)
 
         // Add RoPE to the queries and keys and combine them with the cache
-        if let cache {
-            queries = rope(queries, offset: cache.offset)
-            keys = rope(keys, offset: cache.offset)
-        } else {
-            queries = rope(queries)
-            keys = rope(keys)
-        }
+        let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: B)
+        queries = applyRotaryEmbedding(
+            queries,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
+        keys = applyRotaryEmbedding(
+            keys,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
 
         // Finally perform the attention computation
         let scale = sqrt(1 / Float(queries.dim(-1)))

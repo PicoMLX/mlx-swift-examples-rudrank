@@ -93,13 +93,19 @@ private class Attention: Module {
         keys = keys.reshaped(B, L, args.kvHeads, -1).transposed(0, 2, 1, 3)
         values = values.reshaped(B, L, args.kvHeads, -1).transposed(0, 2, 1, 3)
 
-        if let cache {
-            queries = rope.applyEncoding(queries, offset: cache.offset)
-            keys = rope.applyEncoding(keys, offset: cache.offset)
-        } else {
-            queries = rope.applyEncoding(queries)
-            keys = rope.applyEncoding(keys)
-        }
+        let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: B)
+        queries = applyRotaryEmbedding(
+            queries,
+            offsets: rotaryOffsets,
+            base: { rope.applyEncoding($0) },
+            withOffset: { tensor, offset in rope.applyEncoding(tensor, offset: offset) }
+        )
+        keys = applyRotaryEmbedding(
+            keys,
+            offsets: rotaryOffsets,
+            base: { rope.applyEncoding($0) },
+            withOffset: { tensor, offset in rope.applyEncoding(tensor, offset: offset) }
+        )
 
         let output = attentionWithCacheUpdate(
             queries: queries,

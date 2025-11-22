@@ -84,12 +84,20 @@ private class Attention: Module {
         keys = kNorm(keys.reshaped(B, L, args.kvHeads, -1)).transposed(0, 2, 1, 3)
         values = values.reshaped(B, L, args.kvHeads, -1).transposed(0, 2, 1, 3)
 
-        if let cache, useRope, let rope {
-            queries = rope(queries, offset: cache.offset)
-            keys = rope(keys, offset: cache.offset)
-        } else if useRope, let rope {
-            queries = rope(queries)
-            keys = rope(keys)
+        if useRope, let rope {
+            let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: B)
+            queries = applyRotaryEmbedding(
+                queries,
+                offsets: rotaryOffsets,
+                base: { rope($0) },
+                withOffset: { tensor, offset in rope(tensor, offset: offset) }
+            )
+            keys = applyRotaryEmbedding(
+                keys,
+                offsets: rotaryOffsets,
+                base: { rope($0) },
+                withOffset: { tensor, offset in rope(tensor, offset: offset) }
+            )
         }
 
         let output = attentionWithCacheUpdate(

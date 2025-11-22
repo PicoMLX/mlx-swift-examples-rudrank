@@ -346,7 +346,7 @@ class LLMEvaluator {
     /// parameters controlling the output
     let generateParameters = GenerateParameters(maxTokens: 500, temperature: 0.6)
     let updateInterval = Duration.seconds(0.25)
-    let continuousStaggerSeconds: Double = 2.5
+    let continuousStaggerSeconds: Double = 1.0
 
     /// A task responsible for handling the generation process.
     var generationTask: Task<Void, Error>?

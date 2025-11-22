@@ -1272,7 +1272,7 @@ public class BatchRotatingKVCache: BaseKVCache {
     private var keys: MLXArray?
     private var values: MLXArray?
     private var leftPadding: MLXArray
-    private var offsets: MLXArray
+    public private(set) var offsets: MLXArray
     private var idx: Int = 0
     private var offsetCursor: Int = 0
     private var rotated: Bool = false

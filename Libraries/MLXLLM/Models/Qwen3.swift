@@ -77,13 +77,19 @@ private class Attention: Module {
         values = values.reshaped(B, L, args.kvHeads, -1).transposed(0, 2, 1, 3)
 
         // Apply RoPE positioning
-        if let cache {
-            queries = rope(queries, offset: cache.offset)
-            keys = rope(keys, offset: cache.offset)
-        } else {
-            queries = rope(queries)
-            keys = rope(keys)
-        }
+        let rotaryOffsets = makeRotaryOffsets(cache: cache, batchSize: B)
+        queries = applyRotaryEmbedding(
+            queries,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
+        keys = applyRotaryEmbedding(
+            keys,
+            offsets: rotaryOffsets,
+            base: { rope($0) },
+            withOffset: { tensor, offset in rope(tensor, offset: offset) }
+        )
 
         // Use the automatic attention router that handles both quantized and regular caches
         let output = attentionWithCacheUpdate(
